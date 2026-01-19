@@ -11,5 +11,5 @@ tests
 *.test.ts
 jest.config.js
 .eslintrc.js
-tsconfig.json
+tsconfig.eslint.json
 .github
