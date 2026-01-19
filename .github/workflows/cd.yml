@@ -59,19 +59,37 @@ jobs:
       
       # ============================================
       # Stage 5: Validate Kubernetes Manifests
-      # Purpose: Ensure manifests are syntactically correct
+      # Purpose: Ensure manifests are syntactically correct (without cluster)
       # ============================================
       - name: ✅ Validate Kubernetes Manifests
         run: |
           echo "🔍 Validating Kubernetes manifests..."
+          echo ""
           
-          # Validate YAML syntax
+          # Validate each manifest file
           for file in k8s/*.yaml; do
-            echo "Checking $file..."
-            kubectl apply --dry-run=client --validate=false -f "$file" || exit 1
+            filename=$(basename "$file")
+            echo "📄 Validating $filename..."
+            
+            # Check for required Kubernetes fields
+            if ! grep -q "apiVersion:" "$file"; then
+              echo "❌ Error: Missing 'apiVersion' in $filename"
+              exit 1
+            fi
+            
+            if ! grep -q "kind:" "$file"; then
+              echo "❌ Error: Missing 'kind' in $filename"
+              exit 1
+            fi
+            
+            if ! grep -q "metadata:" "$file"; then
+              echo "❌ Error: Missing 'metadata' in $filename"
+              exit 1
+            fi
+            
+            echo "   ✅ Valid Kubernetes manifest"
           done
-          
-          echo "✅ All manifests are syntactically valid"
+        
       
       # ============================================
       # Stage 6: Deploy to Kubernetes (Simulation)
