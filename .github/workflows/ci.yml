@@ -11,6 +11,11 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   ci:
     name: Continuous Integration
