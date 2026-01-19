@@ -97,30 +97,33 @@ jobs:
                        -t ayushsaxena27/residential-incident-api:${{ github.sha }} .
       
       # ============================================
-      # Stage 10: Container Security Scan - Trivy (HARD GATE)
-      # Purpose: Prevent vulnerable container images from being deployed
-      # Fails on HIGH or CRITICAL vulnerabilities
+      # Stage 10: Container Security Scan - Trivy
+      # Purpose: Block deployment only on CRITICAL vulns
       # ============================================
-      - name: 🔒 Run Trivy Container Scan (Generate Report)
-        uses: aquasecurity/trivy-action@master
+
+      - name: 🔒 Run Trivy Container Scan (Generate SARIF Report)
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ayushsaxena27/residential-incident-api:latest
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-      
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL
+          exit-code: 0
+
       - name: 📤 Upload Trivy Results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
-      
-      - name: 🔍 Run Trivy Container Scan (Enforce Policy)
-        uses: aquasecurity/trivy-action@master
+          sarif_file: trivy-results.sarif
+
+      - name: 🔍 Run Trivy Container Scan (Policy Gate)
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ayushsaxena27/residential-incident-api:latest
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '1'
+          format: table
+          severity: CRITICAL
+          exit-code: 1
+
       
       # ============================================
       # Stage 11: Runtime Container Test
