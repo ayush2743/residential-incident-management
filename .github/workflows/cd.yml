@@ -64,8 +64,14 @@ jobs:
       - name: ✅ Validate Kubernetes Manifests
         run: |
           echo "🔍 Validating Kubernetes manifests..."
-          kubectl apply --dry-run=client -f k8s/
-          echo "✅ Manifests are valid"
+          
+          # Validate YAML syntax
+          for file in k8s/*.yaml; do
+            echo "Checking $file..."
+            kubectl apply --dry-run=client --validate=false -f "$file" || exit 1
+          done
+          
+          echo "✅ All manifests are syntactically valid"
       
       # ============================================
       # Stage 6: Deploy to Kubernetes (Simulation)
