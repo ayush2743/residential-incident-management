@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+dist
+coverage
+.git
+.gitignore
+README.md
+.env
+.env.local
+tests
+*.test.ts
+jest.config.js
+.eslintrc.js
+tsconfig.json
+.github

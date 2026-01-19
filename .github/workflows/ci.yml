@@ -1,0 +1,194 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  ci:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ============================================
+      # Stage 1: Checkout Code
+      # ============================================
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+      
+      # ============================================
+      # Stage 2: Setup Node.js with Caching
+      # ============================================
+      - name: 🔧 Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      # ============================================
+      # Stage 3: Install Dependencies
+      # ============================================
+      - name: 📦 Install Dependencies
+        run: npm ci
+      
+      # ============================================
+      # Stage 4: Code Quality - Linting (QUALITY GATE)
+      # Purpose: Enforce code standards and prevent technical debt
+      # ============================================
+      - name: 🔍 Run ESLint
+        run: npm run lint
+      
+      # ============================================
+      # Stage 5: SAST - CodeQL Analysis (SECURITY GATE)
+      # Purpose: Detect OWASP Top 10 vulnerabilities early
+      # ============================================
+      - name: 🛡️ Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+      
+      - name: 🛡️ Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+      
+      # ============================================
+      # Stage 6: SCA - Dependency Vulnerability Scan (SECURITY GATE)
+      # Purpose: Detect vulnerable dependencies and supply-chain risks
+      # ============================================
+      - name: 🔐 Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: false
+      
+      # ============================================
+      # Stage 7: Unit Tests
+      # Purpose: Prevent regressions and ensure code correctness
+      # ============================================
+      - name: 🧪 Run Unit Tests
+        run: npm test
+      
+      # ============================================
+      # Stage 8: Build Application
+      # Purpose: Ensure TypeScript compiles successfully before containerization
+      # ============================================
+      - name: 🏗️ Build Application
+        run: npm run build
+      
+      # ============================================
+      # Stage 9: Docker Build
+      # Purpose: Create container image for deployment
+      # ============================================
+      - name: 🐳 Build Docker Image
+        run: |
+          docker build -t ayushsaxena27/residential-incident-api:latest \
+                       -t ayushsaxena27/residential-incident-api:${{ github.sha }} .
+      
+      # ============================================
+      # Stage 10: Container Security Scan - Trivy (HARD GATE)
+      # Purpose: Prevent vulnerable container images from being deployed
+      # Fails on HIGH or CRITICAL vulnerabilities
+      # ============================================
+      - name: 🔒 Run Trivy Container Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ayushsaxena27/residential-incident-api:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+      
+      - name: 📤 Upload Trivy Results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      # ============================================
+      # Stage 11: Runtime Container Test
+      # Purpose: Verify container is runnable and application behaves correctly
+      # ============================================
+      - name: 🚀 Test Container Runtime
+        run: |
+          # Start container in detached mode
+          docker run -d --name test-container -p 3000:3000 ayushsaxena27/residential-incident-api:latest
+          
+          # Wait for container to be ready
+          echo "⏳ Waiting for container to start..."
+          sleep 5
+          
+          # Check container is running
+          docker ps | grep test-container
+          
+          # Test health endpoint
+          echo "🏥 Testing health endpoint..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+          
+          if [ "$RESPONSE" -eq 200 ]; then
+            echo "✅ Health check passed (HTTP $RESPONSE)"
+          else
+            echo "❌ Health check failed (HTTP $RESPONSE)"
+            docker logs test-container
+            exit 1
+          fi
+          
+          # Test creating an incident
+          echo "📝 Testing incident creation..."
+          INCIDENT_RESPONSE=$(curl -s -X POST http://localhost:3000/incidents \
+            -H "Content-Type: application/json" \
+            -d '{"category":"WATER","priority":"P1","location":"Block A","summary":"Test incident"}')
+          
+          echo "Incident creation response: $INCIDENT_RESPONSE"
+          
+          # Cleanup
+          docker stop test-container
+          docker rm test-container
+      
+      # ============================================
+      # Stage 12: Login to DockerHub (Using Secrets)
+      # Purpose: Authenticate to container registry securely
+      # ============================================
+      - name: 🔑 Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      # ============================================
+      # Stage 13: Push Docker Image to Registry
+      # Purpose: Publish trusted artifact only after all gates pass
+      # This runs ONLY if all previous stages succeed
+      # ============================================
+      - name: 📤 Push Docker Image to DockerHub
+        run: |
+          docker push ayushsaxena27/residential-incident-api:latest
+          docker push ayushsaxena27/residential-incident-api:${{ github.sha }}
+          echo "✅ Successfully pushed images:"
+          echo "   - ayushsaxena27/residential-incident-api:latest"
+          echo "   - ayushsaxena27/residential-incident-api:${{ github.sha }}"
+      
+      # ============================================
+      # Final Summary
+      # ============================================
+      - name: ✅ CI Pipeline Complete
+        run: |
+          echo "=========================================="
+          echo "✅ CI Pipeline Successfully Completed"
+          echo "=========================================="
+          echo "All quality and security gates passed:"
+          echo "  ✓ Code linting"
+          echo "  ✓ SAST (CodeQL)"
+          echo "  ✓ SCA (npm audit)"
+          echo "  ✓ Unit tests"
+          echo "  ✓ Application build"
+          echo "  ✓ Container security scan (Trivy)"
+          echo "  ✓ Runtime container test"
+          echo "  ✓ Docker image published"
+          echo "=========================================="

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: residential-ops
+  labels:
+    app: residential-incident-management
+    environment: production

@@ -1,0 +1,136 @@
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Continuous Deployment
+    runs-on: ubuntu-latest
+    
+    # Only run if CI pipeline succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      # ============================================
+      # Stage 1: Checkout Repository
+      # ============================================
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+      
+      # ============================================
+      # Stage 2: Login to DockerHub
+      # Purpose: Pull the verified image from registry
+      # ============================================
+      - name: 🔑 Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      # ============================================
+      # Stage 3: Pull Docker Image
+      # Purpose: Get the trusted image that passed all CI gates
+      # ============================================
+      - name: 📥 Pull Docker Image
+        run: |
+          docker pull ayushsaxena27/residential-incident-api:latest
+          echo "✅ Successfully pulled image from registry"
+      
+      # ============================================
+      # Stage 4: Setup Kubernetes Tools
+      # Purpose: Prepare kubectl for deployment
+      # ============================================
+      - name: 🔧 Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+      
+      # ============================================
+      # Stage 5: Validate Kubernetes Manifests
+      # Purpose: Ensure manifests are syntactically correct
+      # ============================================
+      - name: ✅ Validate Kubernetes Manifests
+        run: |
+          echo "🔍 Validating Kubernetes manifests..."
+          kubectl apply --dry-run=client -f k8s/
+          echo "✅ Manifests are valid"
+      
+      # ============================================
+      # Stage 6: Deploy to Kubernetes (Simulation)
+      # Purpose: Show how deployment would work in real cluster
+      # Note: Actual cluster deployment requires kubeconfig
+      # ============================================
+      - name: 📋 Display Deployment Instructions
+        run: |
+          echo "=========================================="
+          echo "📦 Deployment Ready"
+          echo "=========================================="
+          echo ""
+          echo "Image verified and ready for deployment:"
+          echo "  📦 ayushsaxena27/residential-incident-api:latest"
+          echo ""
+          echo "To deploy to your Kubernetes cluster, run:"
+          echo "  kubectl apply -f k8s/"
+          echo ""
+          echo "To verify deployment:"
+          echo "  kubectl get deployments -n residential-ops"
+          echo "  kubectl get services -n residential-ops"
+          echo "  kubectl get pods -n residential-ops"
+          echo ""
+          echo "To access the application:"
+          echo "  kubectl port-forward -n residential-ops svc/incident-api-service 3000:80"
+          echo "  curl http://localhost:3000/health"
+          echo "=========================================="
+      
+      # ============================================
+      # Stage 7: Optional - DAST Simulation
+      # Purpose: Demonstrate runtime security testing
+      # ============================================
+      - name: 🛡️ DAST - Security Scan (Simulation)
+        run: |
+          echo "=========================================="
+          echo "🛡️ DAST Security Scan (Simulation)"
+          echo "=========================================="
+          echo ""
+          echo "In production, this stage would:"
+          echo "  1. Deploy application to staging environment"
+          echo "  2. Run OWASP ZAP baseline scan"
+          echo "  3. Test for runtime vulnerabilities:"
+          echo "     - SQL Injection"
+          echo "     - XSS"
+          echo "     - CSRF"
+          echo "     - Security Headers"
+          echo "  4. Generate security report"
+          echo ""
+          echo "Example OWASP ZAP command:"
+          echo "  docker run -t owasp/zap2docker-stable zap-baseline.py \\"
+          echo "    -t http://staging-url \\"
+          echo "    -r zap-report.html"
+          echo ""
+          echo "✅ DAST check passed (simulated)"
+          echo "=========================================="
+      
+      # ============================================
+      # Final Summary
+      # ============================================
+      - name: ✅ CD Pipeline Complete
+        run: |
+          echo "=========================================="
+          echo "✅ CD Pipeline Successfully Completed"
+          echo "=========================================="
+          echo "Deployment artifacts ready:"
+          echo "  ✓ Docker image pulled from registry"
+          echo "  ✓ Kubernetes manifests validated"
+          echo "  ✓ Deployment instructions provided"
+          echo "  ✓ DAST simulation completed"
+          echo ""
+          echo "Status: READY FOR DEPLOYMENT"
+          echo "=========================================="

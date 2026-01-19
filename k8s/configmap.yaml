@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: incident-api-config
+  namespace: residential-ops
+  labels:
+    app: incident-api
+data:
+  app.name: "Residential Incident Management API"
+  app.version: "1.0.0"
+  log.level: "info"
